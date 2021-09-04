@@ -1,0 +1,159 @@
+---
+title: "analysis"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r}
+library(tidyverse)
+library(stm)
+library(igraph)
+library(tm)
+library(textstem)
+library(reshape2)
+library(tidytext)
+library(plotly)
+library(Rtsne)
+```
+
+
+
+```{r}
+load('D:/UIUC/2021SPRING/IS567Text Mining/Assignment1/IS557finalProj/sco_topic_model.RData')
+```
+
+```{r}
+#模型结果（每个topic里面的high probability （highest prob） & most high prob exclusive words （FREX），可以根据这个确定每个topic的意义，high prob words确定大致含义，exclusive words用来区分相似的topic，比如topic 1【child care】和topic 98【爸妈以外的亲属关系的区别】）
+
+labelTopics(model, c(1:110), n = 20)
+```
+```
+Topic 99 Top Words:
+ 	 Highest Prob: immigrant, native, group, generation, assimilation, foreignborn, puerto, american, language, among, english, state, origin, united, mexican, ethnic, immigration, born, nativeborn, new 
+ 	 FREX: puerto, secondgeneration, nativeborn, rican, foreignborn, ricans, cuban, assimilation, filipino, rico, native, nativity, usborn, immigrant, firstgeneration, enclave, proficiency, bilingual, hawaiian, spanish 
+ 	 Lift: ricans, nisei, secondgeneration, immigrantnative, rican, puerto, firstgeneration, thirdgeneration, bilingualism, nativeborn, latergeneration, asianamericans, nonenglish, filipino, bilingual, mothertongue, nationalorigin, cuban, monolingual, chinatown 
+ 	 Score: immigrant, puerto, assimilation, foreignborn, native, usborn, mexican, secondgeneration, nativeborn, ricans, rican, enclave, cuban, filipino, immigration, ethnic, bilingualism, japanese, english, rico
+```
+```{r}
+model
+```
+
+```{r, fig.width = 10}
+mod.out.corr <- topicCorr(model)
+cormat <- round(mod.out.corr$cor,3)
+
+melt_cormat <- melt(cormat)
+
+#最相关的topic
+melt_cormat %>%
+  filter(Var1 == 99) %>% #选择一个感兴趣的topic，看看哪些topic和它正相关哪些负相关
+  arrange(desc(value))
+
+#比如和topic 1最相关的是topic 30，87，108，35，63等等）
+
+#最不相关的topic
+melt_cormat %>%
+  filter(Var1 == 99) %>% #选择一个感兴趣的topic，看看哪些topic和它正相关哪些负相关
+  arrange(value)
+
+
+# correlation heatmap
+#静态
+melt_cormat %>%
+  mutate(value = if_else(Var1 == Var2, 0, value)) %>%
+  ggplot() +
+  geom_tile(aes(factor(Var1),factor(Var2), fill = value)) +
+  scale_fill_gradient2(low="navy", mid="white", high="red")
+
+#可交互
+inter_map <- melt_cormat %>%
+  mutate(value = if_else(Var1 == Var2, 0, value)) %>%
+  spread(Var2, value) %>%
+  select(-Var1) %>%
+  as.matrix
+
+library(heatmaply)
+heatmaply(inter_map)
+```
+
+```{r}
+prop_model <- tidy(model, matrix = "gamma")
+```
+
+```{r}
+#我试的第一个是LGBT issues 64, 1980年急剧上升刚好符合那段时间的社会运动
+prop_model %>%
+  inner_join(rename(model$meta, 'document' = index)) %>%
+  filter(topic == 64) %>%
+  ggplot(aes(`Publication Year`, gamma)) +
+  geom_smooth()
+
+#我试的第二个是极权主义问题 10（包括极右的纳粹和极左的斯大林时期。二战左右是高峰）
+prop_model %>%
+  inner_join(rename(model$meta, 'document' = index)) %>%
+  filter(topic == 10) %>%
+  ggplot(aes(`Publication Year`, gamma)) +
+  geom_smooth()
+```
+```{r}
+#也可以看分位图
+prop_model %>%
+  inner_join(rename(model$meta, 'document' = index)) %>%
+  filter(topic == 99) %>%
+  ggplot(aes(`Publication Year`, gamma)) +
+  geom_smooth() +
+  facet_wrap(~ `Source Title`)
+```
+
+```{r}
+#我们也可以把每篇文章堪称是一个由100维topic proportion组成的相量，进而做聚类或可视化
+doc_vec <- prop_model %>%
+  spread(topic, gamma)
+```
+
+
+
+
+
+```{r}
+
+#TSNE可能会有点久，所以你们不一定跑这部分
+library(Rtsne)
+
+
+tsne_out <- Rtsne(scale(as.matrix(doc_vec[2:111])), perplexity=30,
+                  check_duplicates = FALSE, dims = 3, theta = 0.4)
+
+
+doc_vec$tsne1 <- tsne_out$Y[,1]
+doc_vec$tsne2 <- tsne_out$Y[,2]
+doc_vec$tsne3 <- tsne_out$Y[,3]
+
+tsne_result <- inner_join(doc_vec, rename(model$meta, 'document' = index))
+tsne_result %>%
+  ggplot(aes(tsne1,tsne2)) +
+  geom_point(aes(color = `Source Title`))
+
+tsne_result %>%
+  ggplot(aes(tsne1,tsne2)) +
+  geom_point(aes(color = `Publication Year`))
+
+```
+
+```{r}
+plot_ly(tsne_result, x = ~tsne1, y = ~tsne2, z = ~tsne3,color = ~`Source Title`) %>%
+  add_markers(size = 1) %>%
+  layout(scene = list(xaxis = list(title = 'PC1'),
+                     yaxis = list(title = 'PC2'),
+                     zaxis = list(title = 'PC3')))
+```
+
+```{r}
+plot_ly(tsne_result, x = ~tsne1, y = ~tsne2, z = ~tsne3,color = ~`Publication Year`) %>%
+  add_markers(size = 1) %>%
+  layout(scene = list(xaxis = list(title = 'PC1'),
+                     yaxis = list(title = 'PC2'),
+                     zaxis = list(title = 'PC3')))
+```
+

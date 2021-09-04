@@ -1,0 +1,79 @@
+---
+title: "Topic modeling"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r,warning = FALSE}
+library(tidyverse)
+library(stm)
+library(igraph)
+library(tm)
+library(textstem)
+library(reshape2)
+library(tidytext)
+```
+
+```{r}
+# 加载数据
+documents <- read_csv('D:/UIUC/2021SPRING/IS567Text Mining/Assignment1/IS557finalProj/cleandata.csv.gz')
+```
+
+
+```{r}
+# 把index随机化（防止validation split时有bias）。导入数据后只run一次，不然index会变
+index <- 1:nrow(documents)
+set.seed(30)
+index <- sample(index, length(index))
+documents$index <- index
+documents <- arrange(documents, index)
+```
+
+
+
+```{r}
+#预处理
+processed <- textProcessor(documents$lemm, metadata = select(documents, -text), 
+                           lowercase = FALSE, removestopwords = FALSE, 
+                           wordLengths = c(3, Inf), stem = FALSE)
+```
+
+
+```{r}
+#去除极高频词和极低频词
+out <- prepDocuments(processed$documents, processed$vocab, 
+                     processed$meta, lower.thresh = 20,
+                     upper.thresh=Inf)
+
+```
+
+```{r}
+#Jiawei（50，120），Kanyao（70，100），Junjie（80，90）
+set.seed(20)
+storage <- searchK(out$documents, out$vocab, 
+                   K = c(50,120), data = out$meta, 
+                   heldout.seed = 20)
+plot(storage)
+```
+
+
+```{r}
+save(storage, file = 'D:/UIUC/2021SPRING/IS567Text Mining/Assignment1/IS557finalProj/storage.RData')
+```
+
+
+
+
+
+
+
+
+
+
+
+
