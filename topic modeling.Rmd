@@ -20,13 +20,13 @@ library(tidytext)
 ```
 
 ```{r}
-# 加载数据
+# load data
 documents <- read_csv('D:/UIUC/2021SPRING/IS567Text Mining/Assignment1/IS557finalProj/cleandata.csv.gz')
 ```
 
 
 ```{r}
-# 把index随机化（防止validation split时有bias）。导入数据后只run一次，不然index会变
+# randomize index (prevent bias in validation split）after loading data run only once else the index will change
 index <- 1:nrow(documents)
 set.seed(30)
 index <- sample(index, length(index))
@@ -37,7 +37,7 @@ documents <- arrange(documents, index)
 
 
 ```{r}
-#预处理
+#preprocessing
 processed <- textProcessor(documents$lemm, metadata = select(documents, -text), 
                            lowercase = FALSE, removestopwords = FALSE, 
                            wordLengths = c(3, Inf), stem = FALSE)
@@ -45,7 +45,7 @@ processed <- textProcessor(documents$lemm, metadata = select(documents, -text),
 
 
 ```{r}
-#去除极高频词和极低频词
+#remove very high and low frequency words
 out <- prepDocuments(processed$documents, processed$vocab, 
                      processed$meta, lower.thresh = 20,
                      upper.thresh=Inf)
